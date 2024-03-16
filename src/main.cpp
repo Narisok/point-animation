@@ -67,41 +67,41 @@ float centred(float x)
     return std::pow((x - 0.5f),3) * 4.f + 0.5f;
 }
 
-Animation* anim;
+
+sf::RenderWindow window(sf::VideoMode(500, 500), "SFML works!");
+
+sf::View view(sf::FloatRect(-125,-250, 500, 500));
 
 int main()
 {
 
-    sf::RenderWindow window(sf::VideoMode(500, 500), "SFML works!");
+    std::vector<sf::RectangleShape> rects(2, sf::RectangleShape({2.f, 2.f}));
 
-    shape.setOrigin(10.f, 10.f);
-    shape.setPosition(50.f, 250.f);
+    rects.at(0).setSize({500.f, 2.f});
+
+    rects.at(1).setSize({2.f, 500.f});
+
+    for (auto& r : rects) {
+        r.setFillColor(sf::Color::Magenta);
+        auto p = r.getSize();
+        r.setOrigin({p.x/2.f, p.y/2.f});
+        r.setPosition({0.f, 0.f});
+    }
+
+    rects.at(0).setPosition({125.f, 0.f});
+
+    sf::RectangleShape rect({200.f, 200.f});
+    rect.setOrigin({0, 100});
+    rect.setPosition({0.f, 0.f});
+
+
+
+    shape.setOrigin({shape.getRadius(), shape.getRadius()});
+    shape.setPosition(150, 0.f);
     shape.setFillColor({136, 176, 75});
 
-    std::vector<sf::CircleShape> points(10);
+    window.setView(view);
 
-    for (auto &point : points) {
-        point.setRadius(5.f);
-        point.setOrigin({2.5f, 2.5f});
-
-        point.setFillColor({224, 181, 137});
-    }
-
-    for (size_t i = 0; i < 5; i++)
-    {
-        points[1 + i].setPosition(50.f + i * speed, 250.f);
-    }
-
-
-    points[9].setPosition(0.f, 260.f);
-    points[9].setFillColor({232, 181, 206});
-
-    bool firstLoop = true;
-
-    tickTimer.restart();
-    globalTimer.restart();
-
-    anim = new Vec2fAnimation(&shape, shape.getPosition() + sf::Vector2f({speed, 0.f}), 2s, bounceUp);
 
     while (window.isOpen())
     {
@@ -112,30 +112,49 @@ int main()
                 window.close();
         }
 
-        if (! firstLoop) {
-            loop();
-        }
 
-        points[9].setPosition(shape.getPosition().x, points[9].getPosition().y);
+        loop();
 
 
         window.clear();
-        window.draw(shape);
+
+        window.draw(rect);
 
 
-        for (auto &point : points) {
-            window.draw(point);
+        {
+            window.draw(shape);
+
+            auto color = shape.getFillColor();
+            shape.setFillColor(sf::Color(color.r, color.g, color.b, 100));
+            shape.move({0.f, -25.f});
+            window.draw(shape);
+            shape.move({0.f, 25.f});
+            shape.setFillColor(color);
+
+            sf::Vector2f p = shape.getPosition();
+            sf::Vector2i pi(static_cast<int>(p.x), static_cast<int>(p.y));
+
+            int max = 200;
+            float radius = shape.getRadius();
+            int ri = static_cast<int>(radius);
+
+            if ((pi.x + ri) > max ) {
+                shape.setPosition({float(((pi.x + ri) % max) - ri), p.y});
+
+                window.draw(shape);
+                shape.setPosition(p);
+            }
+
+
+            for (auto& r : rects) {
+                window.draw(r);
+            }
         }
+
         window.display();
 
-        std::cout << "FPS: " << std::ceil(1.f / tickTimer.restart()) << std::endl;
 
         std::this_thread::sleep_for(15ms);
-
-        if (firstLoop) {
-            std::this_thread::sleep_for(1s);
-            firstLoop = false;
-        }
     }
 
     return 0;
@@ -144,5 +163,9 @@ int main()
 
 void loop()
 {
-    anim->update();
+    sf::Vector2f mp = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+    sf::Vector2f p = shape.getPosition();
+
+
+    shape.setPosition({mp.x, p.y});
 }
