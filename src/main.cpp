@@ -3,12 +3,15 @@
 #include <chrono>
 #include <iostream>
 #include <thread>
+#include <future>
 #include <vector>
 #include <functional>
 
 #include "Clock.hpp"
 
 #include "AllAnimations.hpp"
+
+#include "Map.hpp"
 
 
 using namespace std::chrono_literals;
@@ -26,7 +29,6 @@ float_equal(T x, T y, std::size_t n = 1)
     return std::fabs(x - y) <= n * std::ldexp(std::numeric_limits<T>::epsilon(), exp);
 }
 
-void loop();
 
 sf::CircleShape shape(20.f);
 
@@ -35,17 +37,7 @@ Clock globalTimer{};
 
 float speed = 100;
 
-// inline void moveTo(sf::Transformable &object, sf::Vector2f to, float time = 1.f, std::function<void (sf::Transformable &object)> onComplete)
-// {
-//     auto cp = object.getPosition();
-
-//     if (float_equal(cp.x, to.x) && float_equal(cp.y, to.y)) {
-//         onComplete(object);
-//         return;
-//     }
-
-
-// }
+void loop(sf::RenderWindow&, sf::View&);
 
 float parabolic(float x)
 {
@@ -68,92 +60,207 @@ float centred(float x)
 }
 
 
-sf::RenderWindow window(sf::VideoMode(500, 500), "SFML works!");
+Map map(90, 90, 10ms);
 
-sf::View view(sf::FloatRect(-125,-250, 500, 500));
+
+void foo()
+{
+    std::this_thread::sleep_for(1ms);
+}
+
+
+void bar()
+{
+
+}
 
 int main()
 {
 
-    std::vector<sf::RectangleShape> rects(2, sf::RectangleShape({2.f, 2.f}));
+    sf::VertexArray vArray;
 
-    rects.at(0).setSize({500.f, 2.f});
+    size_t cols = 2;
+    size_t rows = 3;
 
-    rects.at(1).setSize({2.f, 500.f});
+    vArray.resize(cols*rows);
+    vArray.setPrimitiveType(sf::PrimitiveType::Triangles);
 
-    for (auto& r : rects) {
-        r.setFillColor(sf::Color::Magenta);
-        auto p = r.getSize();
-        r.setOrigin({p.x/2.f, p.y/2.f});
-        r.setPosition({0.f, 0.f});
-    }
-
-    rects.at(0).setPosition({125.f, 0.f});
-
-    sf::RectangleShape rect({200.f, 200.f});
-    rect.setOrigin({0, 100});
-    rect.setPosition({0.f, 0.f});
+    vArray[0].position = {0.f, 0.f};
+    vArray[1].position = {74.f, 21.f};
+    vArray[2].position = {27.f, 125.f};
 
 
+    vArray[3].position = {74.f, 21.f};
+    vArray[4].position = {27.f, 125.f};
+    vArray[5].position = {74.f, 125.f};
+    // for(size_t row = 0; row < rows; row++) {
+    //     for(size_t col = 0; col < cols; col++) {
+    //             vArray[row * cols + col].position = sf::Vector2f{col * 100.f + (rand()%50), row * 100.f + (rand()%50)};
+    //     }
+    // }
 
-    shape.setOrigin({shape.getRadius(), shape.getRadius()});
-    shape.setPosition(150, 0.f);
-    shape.setFillColor({136, 176, 75});
+    sf::RenderWindow window(sf::VideoMode(
+        (SHAPE_SIZE+SHAPE_OUTLINE_SIZE) * map.matrix.columns - SHAPE_OUTLINE_SIZE,
+        (SHAPE_SIZE+SHAPE_OUTLINE_SIZE) * map.matrix.rows - SHAPE_OUTLINE_SIZE),
+        "SFML works!"
+    );
+
+    sf::View view(sf::FloatRect(0,0, window.getSize().x, window.getSize().y));
 
     window.setView(view);
 
+    sf::Text fpsText("0", BaseFont::getFont());
+    fpsText.setStyle(sf::Text::Style::Bold);
+    fpsText.setCharacterSize(12);
+
+    auto fpsClock = std::chrono::high_resolution_clock::now();
+
+    size_t energy = 0;
 
     while (window.isOpen())
     {
+        for (auto &point : map.matrix.elements) {
+            point.resetStyle();
+        }
+
+        Point *point = nullptr;
+
+        int row = static_cast<int>(window.mapPixelToCoords(sf::Mouse::getPosition(window)).y) / (int)(SHAPE_SIZE + SHAPE_OUTLINE_SIZE);
+        int col = static_cast<int>(window.mapPixelToCoords(sf::Mouse::getPosition(window)).x) / (int)(SHAPE_SIZE + SHAPE_OUTLINE_SIZE);
+
+        if ((row >= 0 && row < static_cast<int>(map.matrix.rows)) && (col >= 0 && col < static_cast<int>(map.matrix.columns))) {
+            point = &map[row][col];
+        }
+
         sf::Event event;
         while (window.pollEvent(event))
         {
-            if (event.type == sf::Event::Closed)
+            if (event.type == sf::Event::Closed) {
                 window.close();
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::A) {
+                std::cout << "A" << std::endl;
+                point->update();
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Comma) {
+                std::cout << "Comma" << std::endl;
+                energy -= (int)point->value;
+                point->setValue(0.f);
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Quote) {
+                std::cout << "Quote" << std::endl;
+                point->addValue(100.f);
+                energy += 100;
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::B) {
+                std::cout << "Bomb" << std::endl;
+                point->addValue(10000.f);
+                energy += 10000;
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::M) {
+                std::cout << "Mega" << std::endl;
+                point->addValue(100000.f);
+                energy += 100000;
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::E) {
+                std::cout << "E" << std::endl;
+                map.updating = ! map.updating;
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::O) {
+                std::cout << "O" << std::endl;
+                for (auto &i : map.matrix.elements) {
+                    i.update();
+                }
+                for (auto &i : map.matrix.elements) {
+                    i.updateValue();
+                }
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::U) {
+                std::cout << "U" << std::endl;
+                map.drawing = ! map.drawing;
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::R) {
+                std::cout << "R" << std::endl;
+                for (auto &i : map.matrix.elements) {
+                    i.value = 0;
+                }
+                energy = 0;
+            }
+        }
+
+        if (point) {
+            point->hover();
         }
 
 
-        loop();
 
 
         window.clear();
 
-        window.draw(rect);
+        loop(window, view);
+
+        map.update();
+
+        window.draw(map);
+
+        window.draw(vArray, sf::RenderStates(sf::Transform().translate({100, 100})));
+
+        auto primitiveBefore = vArray.getPrimitiveType();
 
 
-        {
-            window.draw(shape);
+        // vArray.setPrimitiveType(sf::PrimitiveType::LineStrip);
+        // for(size_t i = 0; i < cols * rows; i++) {
+        //     vArray[i].color = sf::Color::Blue;
+        // }
+        // window.draw(vArray, sf::RenderStates(sf::Transform().translate({100, 100})));
 
-            auto color = shape.getFillColor();
-            shape.setFillColor(sf::Color(color.r, color.g, color.b, 100));
-            shape.move({0.f, -25.f});
-            window.draw(shape);
-            shape.move({0.f, 25.f});
-            shape.setFillColor(color);
-
-            sf::Vector2f p = shape.getPosition();
-            sf::Vector2i pi(static_cast<int>(p.x), static_cast<int>(p.y));
-
-            int max = 200;
-            float radius = shape.getRadius();
-            int ri = static_cast<int>(radius);
-
-            if ((pi.x + ri) > max ) {
-                shape.setPosition({float(((pi.x + ri) % max) - ri), p.y});
-
-                window.draw(shape);
-                shape.setPosition(p);
-            }
-
-
-            for (auto& r : rects) {
-                window.draw(r);
-            }
+        vArray.setPrimitiveType(sf::PrimitiveType::Points);
+        for(size_t i = 0; i < cols * rows; i++) {
+            vArray[i].color = sf::Color::Red;
         }
+        window.draw(vArray, sf::RenderStates(sf::Transform().translate({100, 100})));
+
+
+        vArray.setPrimitiveType(primitiveBefore);
+        for(size_t i = 0; i < cols * rows; i++) {
+            vArray[i].color = sf::Color::White;
+        }
+
+        window.draw(fpsText);
 
         window.display();
 
+        auto elapsed = (std::chrono::high_resolution_clock::now() - fpsClock);
+        fpsClock = std::chrono::high_resolution_clock::now();
+        if (elapsed.count() > 0) {
+            // fpsText.setString("--");
+            std::string str = std::to_string(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count()
+                 /
+                 std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count()
+                );
 
+            float aenergy = 0;
+            for (auto &i : map.matrix.elements) {
+                aenergy += i.value;
+            }
+
+            str += std::string("\nTE: ") + std::to_string(energy) + std::string("\nAE: ") + std::to_string(aenergy);
+
+            fpsText.setString(str);
+
+        } else {
+            fpsText.setString("Inf");
+        }
         std::this_thread::sleep_for(15ms);
     }
 
@@ -161,11 +268,7 @@ int main()
 }
 
 
-void loop()
+void loop(sf::RenderWindow &window, sf::View &view)
 {
-    sf::Vector2f mp = window.mapPixelToCoords(sf::Mouse::getPosition(window));
-    sf::Vector2f p = shape.getPosition();
-
-
-    shape.setPosition({mp.x, p.y});
+    // map;
 }
